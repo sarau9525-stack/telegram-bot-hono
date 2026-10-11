@@ -159,18 +159,25 @@ export async function getSystemStats(kv: KVNamespace): Promise<BotStats & { tota
   };
 }
 
-export async function getBotSettings(kv: KVNamespace): Promise<BotSettings> {
-  const raw = await kv.get(KV_KEYS.BOT_SETTINGS);
-  if (!raw) {
-    return {
-      is_enabled: true,
-      welcome_message: 'سلام {first_name} عزیز! 👋\nبه ربات خرید اشتراک خوش آمدید.',
-      maintenance_message: '⚠️ سیستم موقتاً در حال به‌روزرسانی است.',
-      support_username: 'support_admin',
-      updated_at: Date.now(),
-    };
+export async function getBotSettings(kv?: KVNamespace): Promise<BotSettings> {
+  const defaultSettings: BotSettings = {
+    is_enabled: true,
+    welcome_message: 'سلام {first_name} عزیز! 👋\nبه ربات خرید اشتراک خوش آمدید.',
+    maintenance_message: '⚠️ سیستم موقتاً در حال به‌روزرسانی است.',
+    support_username: 'support_admin',
+    updated_at: Date.now(),
+  };
+
+  if (!kv) return defaultSettings;
+
+  try {
+    const raw = await kv.get(KV_KEYS.BOT_SETTINGS);
+    if (!raw) return defaultSettings;
+    return JSON.parse(raw);
+  } catch (err) {
+    console.warn('Could not read bot settings from KV, using default:', err);
+    return defaultSettings;
   }
-  return JSON.parse(raw);
 }
 
 export async function incrementBroadcastCount(kv: KVNamespace, count: number): Promise<void> {
