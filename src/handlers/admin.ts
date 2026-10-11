@@ -255,3 +255,18 @@ export async function handleAdminBroadcast(c: Context<{ Bindings: any }>) {
   await incrementBroadcastCount(kv, count);
   return c.json({ ok: true, sentCount: count });
 }
+
+export async function handleAdminUpdatePlans(c: Context<{ Bindings: any }>) {
+  const kv = c.env.BOT_KV;
+  const body = await c.req.json<{ plans: any[] }>();
+  if (!body.plans) return c.json({ ok: false, error: 'لیست پلن‌ها الزامی است' }, 400);
+  await kv.put('plans:list', JSON.stringify(body.plans));
+  return c.json({ ok: true, plans: body.plans });
+}
+
+export async function handleAdminUpdateSettings(c: Context<{ Bindings: any }>) {
+  const kv = c.env.BOT_KV;
+  const body = await c.req.json<any>();
+  await kv.put('settings:bot_config', JSON.stringify(body));
+  return c.json({ ok: true, settings: body });
+}
