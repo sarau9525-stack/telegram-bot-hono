@@ -46,17 +46,40 @@ export const VPN_PLANS = [
 ];
 
 export async function sendMessage(token: string, options: SendMessageOptions): Promise<any> {
-  const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      chat_id: options.chat_id,
-      text: options.text,
-      parse_mode: options.parse_mode ?? 'HTML',
-      reply_markup: options.reply_markup,
-    }),
-  });
-  return res.json();
+  if (!token) {
+    console.error('sendMessage error: Token is empty!');
+    return { ok: false, error: 'Token is missing' };
+  }
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: options.chat_id,
+        text: options.text,
+        parse_mode: options.parse_mode ?? 'HTML',
+        reply_markup: options.reply_markup,
+      }),
+    });
+    const data: any = await res.json();
+    if (!data.ok && typeof data.description === 'string' && data.description.includes("can't parse entities")) {
+      const plainText = options.text.replace(/<[^>]*>/g, '');
+      const retryRes = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: options.chat_id,
+          text: plainText,
+          reply_markup: options.reply_markup,
+        }),
+      });
+      return await retryRes.json();
+    }
+    return data;
+  } catch (err: any) {
+    console.error('Fetch error sending telegram message:', err);
+    return { ok: false, error: err?.message };
+  }
 }
 
 export async function answerCallback(token: string, id: string, text?: string): Promise<void> {
@@ -113,8 +136,19 @@ export function getPlansInlineKeyboard(): InlineKeyboardMarkup {
 }
 
 export async function handleBotUpdate(update: TelegramUpdate, env: BotBindings): Promise<void> {
-  const token = env.TELEGRAM_BOT_TOKEN;
   const kv = env.BOT_KV;
+  let token = env.TELEGRAM_BOT_TOKEN;
+
+  // اگر توکن به عنوان سکرت ورکر ست نشده بود، از KV بخوانیم
+  if (!token && kv) {
+    token = (await kv.get('settings:telegram_bot_token')) || '';
+  }
+
+  if (!token) {
+    console.error('TELEGRAM_BOT_TOKEN is missing! Set it via wrangler secret or in the /admin panel.');
+    return;
+  }
+
   const botName = env.BOT_NAME || 'ربات خرید اشتراک پرسرعت';
   const cardNumber = env.CARD_NUMBER || '6037-9975-1234-5678';
   const cardHolder = env.CARD_HOLDER || 'به نام مدیریت سرویس';
@@ -126,13 +160,17 @@ export async function handleBotUpdate(update: TelegramUpdate, env: BotBindings):
     const { from, chat, text } = update.message;
     if (!from) return;
 
-    await saveUser(kv, {
-      user_id: from.id,
-      chat_id: chat.id,
-      first_name: from.first_name,
-      last_name: from.last_name,
-      username: from.username,
-    });
+    try {
+      await saveUser(kv, {
+        user_id: from.id,
+        chat_id: chat.id,
+        first_name: from.first_name,
+        last_name: from.last_name,
+        username: from.username,
+      });
+    } catch (kvErr) {
+      console.warn('Non-fatal error saving user to KV:', kvErr);
+    }
 
     if (!settings.is_enabled) {
       await sendMessage(token, { chat_id: chat.id, text: settings.maintenance_message });
