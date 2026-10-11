@@ -201,6 +201,12 @@ export async function handleSetWebhook(c: Context<{ Bindings: any }>) {
 
     const res = await fetch(telegramApiUrl.toString());
     const data: any = await res.json();
+
+    // ذخیره توکن در KV تا ورکر همیشه به آن دسترسی داشته باشد
+    if (data.ok && c.env.BOT_KV) {
+      await c.env.BOT_KV.put('settings:telegram_bot_token', botToken);
+    }
+
     return c.json(data);
   } catch (err: any) {
     return c.json({ ok: false, error: err.message }, 500);
