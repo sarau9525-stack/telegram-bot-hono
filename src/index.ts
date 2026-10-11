@@ -46,7 +46,9 @@ app.post('/webhook', async (c) => {
   try {
     const update = await c.req.json<TelegramUpdate>();
     c.executionCtx.waitUntil(
-      handleBotUpdate(update, c.env)
+      handleBotUpdate(update, c.env).catch((err) => {
+        console.error('Error in handleBotUpdate execution:', err);
+      })
     );
     return c.json({ ok: true });
   } catch (err: any) {
