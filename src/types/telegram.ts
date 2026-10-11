@@ -12,6 +12,23 @@ export interface UserRecord extends UserData {
   last_active: number;
 }
 
+export interface VPNPlan {
+  id: string;
+  title: string;
+  trafficGb: number;
+  days: number;
+  priceToman: number;
+  formattedPrice?: string;
+  isActive?: boolean;
+}
+
+export interface PaymentDetails {
+  cardNumber: string;
+  cardHolder: string;
+  shabaNumber: string;
+  bankName: string;
+}
+
 export interface SubscriptionOrder {
   order_id: string;
   user_id: number;
@@ -19,6 +36,7 @@ export interface SubscriptionOrder {
   username?: string;
   plan_id: string;
   plan_name: string;
+  trafficGb?: number;
   price_toman: number;
   config_url: string;
   expire_date: number;
@@ -28,7 +46,9 @@ export interface SubscriptionOrder {
 
 export interface BotSettings {
   is_enabled: boolean;
+  bot_name?: string;
   welcome_message: string;
+  help_message?: string;
   maintenance_message: string;
   support_username: string;
   updated_at: number;
