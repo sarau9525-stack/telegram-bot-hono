@@ -162,7 +162,9 @@ export async function getSystemStats(kv: KVNamespace): Promise<BotStats & { tota
 export async function getBotSettings(kv?: KVNamespace): Promise<BotSettings> {
   const defaultSettings: BotSettings = {
     is_enabled: true,
+    bot_name: 'ربات خرید اشتراک پرسرعت',
     welcome_message: 'سلام {first_name} عزیز! 👋\nبه ربات خرید اشتراک خوش آمدید.',
+    help_message: '📖 راهنمای اتصال: لینک سابسکریپشن را کپی کرده و در نرم‌افزار v2rayNG یا Streisand وارد کنید.',
     maintenance_message: '⚠️ سیستم موقتاً در حال به‌روزرسانی است.',
     support_username: 'support_admin',
     updated_at: Date.now(),
@@ -178,6 +180,63 @@ export async function getBotSettings(kv?: KVNamespace): Promise<BotSettings> {
     console.warn('Could not read bot settings from KV, using default:', err);
     return defaultSettings;
   }
+}
+
+export async function updateBotSettings(kv: KVNamespace, settings: Partial<BotSettings>): Promise<BotSettings> {
+  const current = await getBotSettings(kv);
+  const updated: BotSettings = { ...current, ...settings, updated_at: Date.now() };
+  await kv.put(KV_KEYS.BOT_SETTINGS, JSON.stringify(updated));
+  return updated;
+}
+
+// ============================================================================
+// مدیریت پویا و دستی پلن‌های فروش (VPN Plans) در دیتابیس KV
+// ============================================================================
+
+export const DEFAULT_VPN_PLANS: VPNPlan[] = [
+  { id: 'plan_30_30', title: '🥉 پلن برنزی: ۳۰ روزه / ۳۰ گیگ', trafficGb: 30, days: 30, priceToman: 95000, formattedPrice: '۹۵,۰۰۰ تومان', isActive: true },
+  { id: 'plan_60_60', title: '🥈 پلن نقره‌ای: ۶۰ روزه / ۶۰ گیگ', trafficGb: 60, days: 60, priceToman: 175000, formattedPrice: '۱۷۵,۰۰۰ تومان', isActive: true },
+  { id: 'plan_90_100', title: '🥇 پلن طلایی: ۹۰ روزه / ۱۰۰ گیگ (ویژه)', trafficGb: 100, days: 90, priceToman: 265000, formattedPrice: '۲۶۵,۰۰۰ تومان', isActive: true },
+];
+
+export async function getPlans(kv?: KVNamespace): Promise<VPNPlan[]> {
+  if (!kv) return DEFAULT_VPN_PLANS;
+  try {
+    const raw = await kv.get('plans:list');
+    if (!raw) return DEFAULT_VPN_PLANS;
+    return JSON.parse(raw);
+  } catch {
+    return DEFAULT_VPN_PLANS;
+  }
+}
+
+export async function savePlans(kv: KVNamespace, plans: VPNPlan[]): Promise<void> {
+  await kv.put('plans:list', JSON.stringify(plans));
+}
+
+// ============================================================================
+// مدیریت اطلاعات بانکی و کارت‌به‌کارت در دیتابیس KV
+// ============================================================================
+
+export const DEFAULT_PAYMENT_CONFIG: PaymentDetails = {
+  cardNumber: '6037-9975-1234-5678',
+  cardHolder: 'علیرضا کریمی',
+  shabaNumber: 'IR120170000000123456789012',
+  bankName: 'بانک ملی ایران',
+};
+
+export async function getPaymentConfig(kv?: KVNamespace): Promise<PaymentDetails> {
+  if (!kv) return DEFAULT_PAYMENT_CONFIG;
+  try {
+    const raw = await kv.get('settings:payment_config');
+    return raw ? JSON.parse(raw) : DEFAULT_PAYMENT_CONFIG;
+  } catch {
+    return DEFAULT_PAYMENT_CONFIG;
+  }
+}
+
+export async function savePaymentConfig(kv: KVNamespace, config: PaymentDetails): Promise<void> {
+  await kv.put('settings:payment_config', JSON.stringify(config));
 }
 
 export async function incrementBroadcastCount(kv: KVNamespace, count: number): Promise<void> {
