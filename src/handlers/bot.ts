@@ -1,10 +1,19 @@
 // ============================================================================
 // فایل: src/handlers/bot.ts
-// منطق ربات تلگرام همراه با فروش خودکار کانفیگ و تحویل آنی
+// منطق ربات تلگرام با پشتیبانی از دو حالت: فروش کانفیگ VPN و فروشگاه کالا با عکس
 // ============================================================================
 
 import type { TelegramUpdate, SendMessageOptions, InlineKeyboardMarkup, ReplyKeyboardMarkup } from '../types/telegram';
-import { saveUser, getBotSettings, saveSubscriptionOrder, getUserOrders } from '../utils/db';
+import { 
+  saveUser, 
+  getBotSettings, 
+  saveSubscriptionOrder, 
+  getUserOrders, 
+  getBotMode, 
+  getShopProducts, 
+  getPlans, 
+  getPaymentConfig 
+} from '../utils/db';
 import { createMarzbanUser, generateQrCodeUrl } from '../services/marzban';
 
 export interface BotBindings {
@@ -17,39 +26,8 @@ export interface BotBindings {
   CARD_HOLDER?: string;
 }
 
-// لیست پلن‌های استاندارد فروش کانفیگ
-export const VPN_PLANS = [
-  {
-    id: 'plan_30_30',
-    title: '🥉 پلن پایه: ۳۰ روزه / ۳۰ گیگ',
-    trafficGb: 30,
-    days: 30,
-    priceToman: 95000,
-    formattedPrice: '۹۵,۰۰۰ تومان',
-  },
-  {
-    id: 'plan_60_60',
-    title: '🥈 پلن نقره‌ای: ۶۰ روزه / ۶۰ گیگ',
-    trafficGb: 60,
-    days: 60,
-    priceToman: 175000,
-    formattedPrice: '۱۷۵,۰۰۰ تومان',
-  },
-  {
-    id: 'plan_90_100',
-    title: '🥇 پلن طلایی: ۹۰ روزه / ۱۰۰ گیگ (ویژه)',
-    trafficGb: 100,
-    days: 90,
-    priceToman: 265000,
-    formattedPrice: '۲۶۵,۰۰۰ تومان',
-  },
-];
-
 export async function sendMessage(token: string, options: SendMessageOptions): Promise<any> {
-  if (!token) {
-    console.error('sendMessage error: Token is empty!');
-    return { ok: false, error: 'Token is missing' };
-  }
+  if (!token) return { ok: false, error: 'Token is missing' };
   try {
     const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: 'POST',
@@ -82,6 +60,46 @@ export async function sendMessage(token: string, options: SendMessageOptions): P
   }
 }
 
+export async function sendPhoto(token: string, options: {
+  chat_id: number | string;
+  photo: string;
+  caption?: string;
+  parse_mode?: string;
+  reply_markup?: any;
+}): Promise<any> {
+  if (!token) return { ok: false, error: 'Token missing' };
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: options.chat_id,
+        photo: options.photo,
+        caption: options.caption,
+        parse_mode: options.parse_mode ?? 'HTML',
+        reply_markup: options.reply_markup,
+      }),
+    });
+    const data: any = await res.json();
+    if (!data.ok) {
+      // در صورت خطای لود عکس، به صورت متن معمولی ارسال شود
+      return await sendMessage(token, {
+        chat_id: options.chat_id,
+        text: (options.caption || '') + '\n\n🖼️ لینک عکس: ' + options.photo,
+        reply_markup: options.reply_markup,
+      });
+    }
+    return data;
+  } catch (err: any) {
+    console.error('Fetch error sending telegram photo:', err);
+    return await sendMessage(token, {
+      chat_id: options.chat_id,
+      text: options.caption || '',
+      reply_markup: options.reply_markup,
+    });
+  }
+}
+
 export async function answerCallback(token: string, id: string, text?: string): Promise<void> {
   try {
     await fetch(`https://api.telegram.org/bot${token}/answerCallbackQuery`, {
@@ -92,8 +110,8 @@ export async function answerCallback(token: string, id: string, text?: string): 
   } catch {}
 }
 
-// کیبورد شیشه‌ای اصلی
-export const MAIN_INLINE_KEYBOARD: InlineKeyboardMarkup = {
+// کیبوردهای ربات کانفیگ VPN
+export const VPN_MAIN_INLINE_KEYBOARD: InlineKeyboardMarkup = {
   inline_keyboard: [
     [
       { text: '🛒 خرید اشتراک پرسرعت', callback_data: 'action_buy' },
@@ -106,40 +124,39 @@ export const MAIN_INLINE_KEYBOARD: InlineKeyboardMarkup = {
   ]
 };
 
-// کیبورد معمولی پایین چت
-export const MAIN_REPLY_KEYBOARD: ReplyKeyboardMarkup = {
+export const VPN_MAIN_REPLY_KEYBOARD: ReplyKeyboardMarkup = {
   keyboard: [
-    [
-      { text: '🛒 خرید اشتراک' },
-      { text: '📊 حساب کاربری' }
-    ],
-    [
-      { text: 'ℹ️ درباره ما' },
-      { text: '📞 پشتیبانی' }
-    ]
+    [{ text: '🛒 خرید اشتراک' }, { text: '📊 حساب کاربری' }],
+    [{ text: 'ℹ️ درباره ما' }, { text: '📞 پشتیبانی' }]
   ],
   resize_keyboard: true,
 };
 
-// تولید کیبورد شیشه‌ای پلن‌های فروش
-export function getPlansInlineKeyboard(): InlineKeyboardMarkup {
-  return {
-    inline_keyboard: [
-      ...VPN_PLANS.map((plan) => [
-        { text: `${plan.title} - ${plan.formattedPrice}`, callback_data: `select_plan_${plan.id}` }
-      ]),
-      [
-        { text: '🔙 بازگشت به منوی اصلی', callback_data: 'action_back_home' }
-      ]
+// کیبوردهای ربات فروشگاه محصولات (با عکس)
+export const SHOP_MAIN_INLINE_KEYBOARD: InlineKeyboardMarkup = {
+  inline_keyboard: [
+    [
+      { text: '🛍️ مشاهده و خرید محصولات', callback_data: 'action_shop_products' }
+    ],
+    [
+      { text: '📦 پیگیری سفارشات من', callback_data: 'action_shop_orders' },
+      { text: '📞 پشتیبانی فروشگاه', callback_data: 'action_support' }
     ]
-  };
-}
+  ]
+};
+
+export const SHOP_MAIN_REPLY_KEYBOARD: ReplyKeyboardMarkup = {
+  keyboard: [
+    [{ text: '🛍️ مشاهده محصولات' }, { text: '📦 سفارشات من' }],
+    [{ text: '📞 پشتیبانی فروشگاه' }, { text: 'ℹ️ راهنمای خرید' }]
+  ],
+  resize_keyboard: true,
+};
 
 export async function handleBotUpdate(update: TelegramUpdate, env: BotBindings): Promise<void> {
   const kv = env.BOT_KV;
   let token = env.TELEGRAM_BOT_TOKEN;
 
-  // اگر توکن به عنوان سکرت ورکر ست نشده بود، از KV بخوانیم
   if (!token && kv) {
     token = (await kv.get('settings:telegram_bot_token')) || '';
   }
@@ -149,13 +166,14 @@ export async function handleBotUpdate(update: TelegramUpdate, env: BotBindings):
     return;
   }
 
-  const botName = env.BOT_NAME || 'ربات خرید اشتراک پرسرعت';
-  const cardNumber = env.CARD_NUMBER || '6037-9975-1234-5678';
-  const cardHolder = env.CARD_HOLDER || 'به نام مدیریت سرویس';
-
+  const botName = env.BOT_NAME || 'ربات هوشمند فروشگاهی و کانفیگ';
+  const botMode = await getBotMode(kv);
+  const payment = await getPaymentConfig(kv);
+  const dynamicPlans = await getPlans(kv);
+  const products = await getShopProducts(kv);
   const settings = await getBotSettings(kv);
 
-  // ۱. بررسی پیام‌های متنی
+  // ۱. پردازش پیام‌های متنی
   if (update.message) {
     const { from, chat, text } = update.message;
     if (!from) return;
@@ -168,9 +186,7 @@ export async function handleBotUpdate(update: TelegramUpdate, env: BotBindings):
         last_name: from.last_name,
         username: from.username,
       });
-    } catch (kvErr) {
-      console.warn('Non-fatal error saving user to KV:', kvErr);
-    }
+    } catch {}
 
     if (!settings.is_enabled) {
       await sendMessage(token, { chat_id: chat.id, text: settings.maintenance_message });
@@ -181,64 +197,105 @@ export async function handleBotUpdate(update: TelegramUpdate, env: BotBindings):
 
     // دستور /start
     if (clean === '/start') {
-      const welcome = 
-        `سلام <b>${from.first_name}</b> عزیز! 👋\n\n` +
-        `به سامانه هوشمند خرید اشتراک اختصاصی <b>${botName}</b> خوش آمدید.\n` +
-        `🚀 <b>ویژگی‌های سرویس:</b>\n` +
-        `• پروتکل‌های مدرن VLESS / Trojan / Reality با دور زدن محدودیت‌ها\n` +
-        `• پینگ فوق‌العاده پایین و اتصال پایدار بر روی تمام اپراتورها\n` +
-        `• تحویل ۱۰۰٪ آنی و خودکار بلافاصله پس از پرداخت\n\n` +
-        `برای مشاهده تعرفه‌ها، روی دکمه <b>«🛒 خرید اشتراک»</b> کلیک کنید:`;
+      if (botMode === 'shop') {
+        const shopWelcome = 
+          `سلام <b>${from.first_name}</b> عزیز! 👋\n\n` +
+          `به <b>${botName}</b> خوش آمدید 🛍️\n\n` +
+          `در این فروشگاه می‌توانید انواع محصولات و اشتراک‌ها را به همراه <b>عکس، توضیحات و قیمت روز</b> مشاهده و به آسانی سفارش دهید.\n\n` +
+          `جهت دیدن ویترین محصولات، روی دکمه زیر کلیک کنید:`;
 
-      await sendMessage(token, {
-        chat_id: chat.id,
-        text: welcome,
-        reply_markup: MAIN_INLINE_KEYBOARD,
-      });
+        await sendMessage(token, {
+          chat_id: chat.id,
+          text: shopWelcome,
+          reply_markup: SHOP_MAIN_INLINE_KEYBOARD,
+        });
+        return;
+      } else {
+        const welcome = 
+          `سلام <b>${from.first_name}</b> عزیز! 👋\n\n` +
+          `به سامانه هوشمند خرید اشتراک اختصاصی <b>${botName}</b> خوش آمدید.\n` +
+          `🚀 <b>ویژگی‌های سرویس:</b>\n` +
+          `• پروتکل‌های مدرن VLESS / Trojan / Reality با پینگ پایین\n` +
+          `• تحویل ۱۰۰٪ آنی و خودکار بلافاصله پس از پرداخت\n\n` +
+          `برای مشاهده تعرفه‌ها، روی دکمه <b>«🛒 خرید اشتراک»</b> کلیک کنید:`;
+
+        await sendMessage(token, {
+          chat_id: chat.id,
+          text: welcome,
+          reply_markup: VPN_MAIN_INLINE_KEYBOARD,
+        });
+        return;
+      }
+    }
+
+    // پیام متنی مشاهده محصولات فروشگاه
+    if (clean === '🛍️ مشاهده محصولات' || clean === '/products') {
+      await sendShopCatalog(token, chat.id, products);
       return;
     }
 
-    // کلیک متنی خرید اشتراک
+    // پیام متنی خرید اشتراک VPN
     if (clean === '🛒 خرید اشتراک') {
+      const activePlans = dynamicPlans.filter(p => p.isActive !== false);
+      const planButtons = activePlans.map(p => ([
+        { text: `${p.title} - ${Number(p.priceToman).toLocaleString('fa-IR')} تومان`, callback_data: `select_plan_${p.id}` }
+      ]));
+      planButtons.push([{ text: '🔙 بازگشت به خانه', callback_data: 'action_back_home' }]);
+
       await sendMessage(token, {
         chat_id: chat.id,
-        text: '⚡ <b>لطفاً پلن مورد نظر خود را برای خرید اشتراک انتخاب کنید:</b>\n\nتمام پلن‌ها دارای آی‌پی اختصاصی و ترافیک بدون افت سرعت می‌باشند:',
-        reply_markup: getPlansInlineKeyboard(),
+        text: '⚡ <b>لطفاً پلن مورد نظر خود را انتخاب کنید:</b>',
+        reply_markup: { inline_keyboard: planButtons },
       });
       return;
     }
 
-    // کلیک متنی حساب کاربری
-    if (clean === '📊 حساب کاربری') {
+    // پیام متنی حساب کاربری / سرویس‌های من
+    if (clean === '📊 حساب کاربری' || clean === '📊 سرویس‌های من' || clean === '📦 سفارشات من') {
       const orders = await getUserOrders(kv, from.id);
-      let orderInfo = 'شما در حال حاضر اشتراک فعالی ندارید.';
-      if (orders.length > 0) {
-        orderInfo = orders.map((o, idx) => 
-          `🔹 <b>اشتراک #${idx + 1}:</b> ${o.plan_name}\n` +
-          `📅 تاریخ انقضا: ${new Date(o.expire_date).toLocaleDateString('fa-IR')}\n` +
-          `🔗 لینک اتصال: <code>${o.config_url}</code>`
-        ).join('\n\n');
+      if (orders.length === 0) {
+        await sendMessage(token, {
+          chat_id: chat.id,
+          text: '⚠️ شما تاکنون هیچ سفارشی ثبت نکرده‌اید.',
+          reply_markup: botMode === 'shop' ? SHOP_MAIN_INLINE_KEYBOARD : VPN_MAIN_INLINE_KEYBOARD,
+        });
+        return;
       }
 
-      const msg = 
-        `📊 <b>مشخصات حساب شما:</b>\n\n` +
-        `👤 نام: <b>${from.first_name}</b>\n` +
-        `🆔 شناسه کاربری: <code>${from.id}</code>\n\n` +
-        `<b>سرویس‌های خریداری‌شده:</b>\n${orderInfo}`;
+      const report = orders.map((o, idx) => 
+        `🔹 <b>سفارش #${idx + 1}:</b> ${o.plan_name}\n` +
+        `💰 مبلغ: <b>${Number(o.price_toman).toLocaleString('fa-IR')} تومان</b>\n` +
+        `📅 ثبت: ${new Date(o.created_at).toLocaleDateString('fa-IR')}\n` +
+        `🔗 کد/لینک: <code>${o.config_url}</code>`
+      ).join('\n\n');
 
-      await sendMessage(token, { chat_id: chat.id, text: msg, reply_markup: MAIN_INLINE_KEYBOARD });
+      await sendMessage(token, {
+        chat_id: chat.id,
+        text: `📊 <b>سفارشات ثبت‌شده شما:</b>\n\n${report}`,
+        reply_markup: botMode === 'shop' ? SHOP_MAIN_INLINE_KEYBOARD : VPN_MAIN_INLINE_KEYBOARD,
+      });
       return;
     }
 
-    // پاسخ عمومی
+    // پشتیبانی
+    if (clean === '📞 پشتیبانی' || clean === '📞 پشتیبانی فروشگاه') {
+      await sendMessage(token, {
+        chat_id: chat.id,
+        text: `📞 <b>پشتیبانی:</b>\n\nجهت پیگیری یا ارتباط با مدیریت:\n@${settings.support_username || 'AlirezaKarimi_dev'}`,
+        reply_markup: botMode === 'shop' ? SHOP_MAIN_INLINE_KEYBOARD : VPN_MAIN_INLINE_KEYBOARD,
+      });
+      return;
+    }
+
+    // پیش‌فرض
     await sendMessage(token, {
       chat_id: chat.id,
-      text: 'جهت سفارش یا مدیریت سرویس‌های خود از دکمه‌های زیر استفاده کنید:',
-      reply_markup: MAIN_INLINE_KEYBOARD,
+      text: 'لطفاً از دکمه‌های زیر جهت کار با ربات استفاده فرمایید:',
+      reply_markup: botMode === 'shop' ? SHOP_MAIN_INLINE_KEYBOARD : VPN_MAIN_INLINE_KEYBOARD,
     });
   }
 
-  // ۲. بررسی کلیک روی دکمه‌های شیشه‌ای (Callback Query)
+  // ۲. پردازش کلیک روی دکمه‌های شیشه‌ای (Callback Query)
   if (update.callback_query) {
     const cb = update.callback_query;
     const action = cb.data || '';
@@ -248,99 +305,144 @@ export async function handleBotUpdate(update: TelegramUpdate, env: BotBindings):
 
     await answerCallback(token, cb.id);
 
-    // دکمه بازگشت به خانه
+    // بازگشت به خانه
     if (action === 'action_back_home') {
       await sendMessage(token, {
         chat_id: chatId,
-        text: '🏠 به منوی اصلی بازگشتید. لطفاً گزینه مورد نظر را انتخاب کنید:',
-        reply_markup: MAIN_INLINE_KEYBOARD,
+        text: '🏠 به منوی اصلی بازگشتید:',
+        reply_markup: botMode === 'shop' ? SHOP_MAIN_INLINE_KEYBOARD : VPN_MAIN_INLINE_KEYBOARD,
       });
       return;
     }
 
-    // دکمه لیست پلن‌ها
-    if (action === 'action_buy') {
-      await sendMessage(token, {
-        chat_id: chatId,
-        text: '⚡ <b>لیست تعرفه‌ها و پلن‌های قابل سفارش:</b>\n\nلطفاً حجم و زمان دلخواه خود را انتخاب کنید:',
-        reply_markup: getPlansInlineKeyboard(),
-      });
+    // نمایش محصولات فروشگاه
+    if (action === 'action_shop_products') {
+      await sendShopCatalog(token, chatId, products);
       return;
     }
 
-    // دکمه سرویس‌های من
-    if (action === 'action_my_services') {
-      const orders = await getUserOrders(kv, from.id);
-      if (orders.length === 0) {
-        await sendMessage(token, {
-          chat_id: chatId,
-          text: '⚠️ شما تاکنون هیچ اشتراکی خریداری نکرده‌اید.\nبرای ثبت اولین سفارش دکمه زیر را لمس کنید:',
-          reply_markup: {
-            inline_keyboard: [[{ text: '🛒 خرید اشتراک', callback_data: 'action_buy' }]]
-          }
-        });
-        return;
-      }
-
-      const report = orders.map((o, idx) => 
-        `🔑 <b>اشتراک فعال شماره ${idx + 1}:</b>\n` +
-        `📦 نام پلن: <b>${o.plan_name}</b>\n` +
-        `📅 تاریخ انقضا: <b>${new Date(o.expire_date).toLocaleDateString('fa-IR')}</b>\n` +
-        `🔗 لینک سابسکریپشن شما:\n<code>${o.config_url}</code>`
-      ).join('\n\n------------------------\n\n');
-
-      await sendMessage(token, { chat_id: chatId, text: report, reply_markup: MAIN_INLINE_KEYBOARD });
-      return;
-    }
-
-    // انتخاب یکی از پلن‌ها و صدور فاکتور
-    if (action.startsWith('select_plan_')) {
-      const planId = action.replace('select_plan_', '');
-      const plan = VPN_PLANS.find(p => p.id === planId) || VPN_PLANS[0];
+    // انتخاب محصول فروشگاه و صدور فاکتور
+    if (action.startsWith('select_shop_')) {
+      const prodId = action.replace('select_shop_', '');
+      const prod = products.find(p => p.id === prodId) || products[0];
 
       const invoiceText = 
-        `🧾 <b>فاکتور پرداخت سفارش</b>\n\n` +
-        `📦 <b>پلن انتخابی:</b> ${plan.title}\n` +
-        `⏳ <b>مدت اعتبار:</b> ${plan.days} روز\n` +
-        `📊 <b>حجم ترافیک:</b> ${plan.trafficGb} گیگابایت\n` +
-        `💰 <b>مبلغ قابل پرداخت:</b> <b>${plan.formattedPrice}</b>\n\n` +
+        `🧾 <b>فاکتور خرید محصول:</b>\n\n` +
+        `🛍️ <b>نام محصول:</b> ${prod.title}\n` +
+        `📂 <b>دسته‌بندی:</b> ${prod.category}\n` +
+        `💰 <b>مبلغ قابل پرداخت:</b> <b>${Number(prod.price_toman).toLocaleString('fa-IR')} تومان</b>\n\n` +
         `💳 <b>اطلاعات پرداخت کارت‌به‌کارت:</b>\n` +
-        `شماره کارت: <code>${cardNumber}</code>\n` +
-        `صاحب حساب: <b>${cardHolder}</b>\n\n` +
-        `پس از پرداخت، روی دکمه <b>«✅ تایید پرداخت و تحویل آنی»</b> بزنید تا کانفیگ اختصاصی شما بلافاصله ساخته شود:`;
+        `بانک: <b>${payment.bankName}</b>\n` +
+        `شماره کارت: <code>${payment.cardNumber}</code>\n` +
+        `صاحب حساب: <b>${payment.cardHolder}</b>\n\n` +
+        `پس از کارت‌به‌کارت، روی دکمه <b>«✅ تایید پرداخت و ثبت نهایی»</b> کلیک کنید:`;
 
       await sendMessage(token, {
         chat_id: chatId,
         text: invoiceText,
         reply_markup: {
           inline_keyboard: [
-            [
-              { text: '✅ تایید پرداخت و تحویل آنی کانفیگ', callback_data: `pay_confirm_${plan.id}` }
-            ],
-            [
-              { text: '🔙 بازگشت به لیست پلن‌ها', callback_data: 'action_buy' }
-            ]
+            [{ text: '✅ تایید پرداخت و ثبت نهایی سفارش', callback_data: `pay_shop_confirm_${prod.id}` }],
+            [{ text: '🔙 بازگشت به محصولات', callback_data: 'action_shop_products' }]
           ]
         }
       });
       return;
     }
 
-    // ۴. تایید پرداخت و ساخت خودکار کانفیگ با Marzban API
-    if (action.startsWith('pay_confirm_')) {
-      const planId = action.replace('pay_confirm_', '');
-      const plan = VPN_PLANS.find(p => p.id === planId) || VPN_PLANS[0];
+    // تایید پرداخت محصول فروشگاه
+    if (action.startsWith('pay_shop_confirm_')) {
+      const prodId = action.replace('pay_shop_confirm_', '');
+      const prod = products.find(p => p.id === prodId) || products[0];
+      const trackingCode = 'TRK-' + Math.floor(100000 + Math.random() * 900000);
 
-      // پیام وضعیت به کاربر
-      await sendMessage(token, {
-        chat_id: chatId,
-        text: '⏳ در حال برقراری ارتباط با سرور و ایجاد اکانت اختصاصی شما... لطفاً چند لحظه شکیبا باشید.',
+      await saveSubscriptionOrder(kv, {
+        order_id: `ord_${Date.now()}`,
+        user_id: from.id,
+        user_name: `${from.first_name} ${from.last_name || ''}`.trim(),
+        username: from.username,
+        plan_id: prod.id,
+        plan_name: prod.title,
+        price_toman: prod.price_toman,
+        config_url: `کد رهگیری: ${trackingCode}`,
+        expire_date: Date.now() + 365 * 24 * 60 * 60 * 1000,
+        created_at: Date.now(),
+        order_type: 'shop',
+        product_image: prod.image_url,
+        status: 'active',
       });
 
-      // ساخت نام کاربری یکتا
-      const cleanUsername = `tg_${from.id}_${Math.floor(Math.random() * 9000 + 1000)}`;
+      const successMsg = 
+        `🎉 <b>سفارش شما با موفقیت ثبت گردید!</b>\n\n` +
+        `🛍️ <b>محصول:</b> ${prod.title}\n` +
+        `🔢 <b>کد رهگیری اختصاصی:</b> <code>${trackingCode}</code>\n` +
+        `💰 <b>مبلغ پرداخت‌شده:</b> ${Number(prod.price_toman).toLocaleString('fa-IR')} تومان\n\n` +
+        `اطلاعات سفارش برای واحد پشتیبانی و ارسال فاکتور صادر شد. با تشکر از خرید شما!`;
 
-      // فراخوانی سرویس پنل مرزبان
+      await sendMessage(token, {
+        chat_id: chatId,
+        text: successMsg,
+        reply_markup: SHOP_MAIN_INLINE_KEYBOARD,
+      });
+      return;
+    }
+
+    // نمایش پلن‌های کانفیگ VPN
+    if (action === 'action_buy') {
+      const activePlans = dynamicPlans.filter(p => p.isActive !== false);
+      const planButtons = activePlans.map(p => ([
+        { text: `${p.title} - ${Number(p.priceToman).toLocaleString('fa-IR')} تومان`, callback_data: `select_plan_${p.id}` }
+      ]));
+      planButtons.push([{ text: '🔙 بازگشت به خانه', callback_data: 'action_back_home' }]);
+
+      await sendMessage(token, {
+        chat_id: chatId,
+        text: '⚡ <b>لیست تعرفه‌ها و پلن‌های قابل سفارش:</b>',
+        reply_markup: { inline_keyboard: planButtons },
+      });
+      return;
+    }
+
+    // انتخاب پلن کانفیگ VPN و صدور فاکتور
+    if (action.startsWith('select_plan_')) {
+      const planId = action.replace('select_plan_', '');
+      const plan = dynamicPlans.find(p => p.id === planId) || dynamicPlans[0];
+
+      const invoiceText = 
+        `🧾 <b>فاکتور پرداخت سفارش اشتراک</b>\n\n` +
+        `📦 <b>پلن:</b> ${plan.title}\n` +
+        `⏳ <b>مدت اعتبار:</b> ${plan.days} روز | ترافیک: ${plan.trafficGb} گیگابایت\n` +
+        `💰 <b>مبلغ قابل پرداخت:</b> <b>${Number(plan.priceToman).toLocaleString('fa-IR')} تومان</b>\n\n` +
+        `💳 <b>اطلاعات پرداخت کارت‌به‌کارت:</b>\n` +
+        `بانک: <b>${payment.bankName}</b>\n` +
+        `شماره کارت: <code>${payment.cardNumber}</code>\n` +
+        `صاحب حساب: <b>${payment.cardHolder}</b>\n\n` +
+        `پس از پرداخت، روی دکمه زیر بزنید تا کانفیگ بلافاصله ساخته شود:`;
+
+      await sendMessage(token, {
+        chat_id: chatId,
+        text: invoiceText,
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '✅ تایید پرداخت و تحویل آنی کانفیگ', callback_data: `pay_confirm_${plan.id}` }],
+            [{ text: '🔙 بازگشت به لیست پلن‌ها', callback_data: 'action_buy' }]
+          ]
+        }
+      });
+      return;
+    }
+
+    // ساخت خودکار کانفیگ Marzban
+    if (action.startsWith('pay_confirm_')) {
+      const planId = action.replace('pay_confirm_', '');
+      const plan = dynamicPlans.find(p => p.id === planId) || dynamicPlans[0];
+
+      await sendMessage(token, {
+        chat_id: chatId,
+        text: '⏳ در حال ساخت کانفیگ اختصاصی شما در سرور... لطفاً چند لحظه شکیبا باشید.',
+      });
+
+      const cleanUsername = `tg_${from.id}_${Math.floor(Math.random() * 9000 + 1000)}`;
       const account = await createMarzbanUser({
         panelUrl: env.MARZBAN_URL || 'https://sub.myvpnserver.net',
         apiToken: env.MARZBAN_TOKEN,
@@ -348,10 +450,9 @@ export async function handleBotUpdate(update: TelegramUpdate, env: BotBindings):
         username: cleanUsername,
         trafficLimitGb: plan.trafficGb,
         days: plan.days,
-        note: `خرید توسط @${from.username || from.id} برای پلن ${plan.title}`,
+        note: `خرید توسط @${from.username || from.id}`,
       });
 
-      // ۵. ذخیره سفارش در پایگاه داده Cloudflare KV
       const expireDate = Date.now() + plan.days * 24 * 60 * 60 * 1000;
       await saveSubscriptionOrder(kv, {
         order_id: `ord_${Date.now()}`,
@@ -364,6 +465,7 @@ export async function handleBotUpdate(update: TelegramUpdate, env: BotBindings):
         config_url: account.subscription_url,
         expire_date: expireDate,
         created_at: Date.now(),
+        order_type: 'vpn',
         status: 'active',
       });
 
@@ -374,48 +476,84 @@ export async function handleBotUpdate(update: TelegramUpdate, env: BotBindings):
         `📦 <b>مشخصات سرویس:</b>\n` +
         `• پلن: <b>${plan.title}</b>\n` +
         `• ترافیک: <b>${plan.trafficGb} GB</b>\n` +
-        `• نام کاربری اکانت: <code>${account.username}</code>\n` +
+        `• نام کاربری: <code>${account.username}</code>\n` +
         `• انقضا: <b>${new Date(expireDate).toLocaleDateString('fa-IR')}</b>\n\n` +
-        `🔗 <b>لینک سابسکریپشن اختصاصی شما (کلیک کنید تا کپی شود):</b>\n` +
+        `🔗 <b>لینک سابسکریپشن اختصاصی شما:</b>\n` +
         `<code>${account.subscription_url}</code>\n\n` +
-        `📱 <b>راهنمای اتصال:</b>\n` +
-        `۱. لینک بالا را کپی کنید.\n` +
-        `۲. در برنامه‌های v2rayNG (اندروید) یا Streisand / V2Box (آیفون) روی علامت <b>+</b> بزنید.\n` +
-        `۳. گزینه <b>Import from Clipboard</b> را انتخاب کنید و متصل شوید!\n\n` +
+        `📱 <b>راهنما:</b> لینک بالا را کپی و در v2rayNG یا Streisand وارد کنید.\n\n` +
         `🖼 <b>بارکد اتصال (QR Code):</b>\n${qrCode}`;
 
       await sendMessage(token, {
         chat_id: chatId,
         text: deliveryMessage,
-        reply_markup: {
-          inline_keyboard: [
-            [
-              { text: '📊 مشاهده سرویس‌های من', callback_data: 'action_my_services' },
-              { text: '🛒 خرید اشتراک دیگر', callback_data: 'action_buy' }
-            ]
-          ]
-        }
+        reply_markup: VPN_MAIN_INLINE_KEYBOARD,
       });
       return;
     }
 
-    // راهنما و پشتیبانی
+    // راهنما
     if (action === 'action_help') {
       await sendMessage(token, {
         chat_id: chatId,
-        text: '📖 <b>راهنمای اتصال به اینترنت آزاد:</b>\n\nبرای اتصال به اشتراک‌های خریداری‌شده، از نرم‌افزارهای زیر استفاده کنید:\n• اندروید: <b>v2rayNG</b> یا <b>Happ</b>\n• آیفون (iOS): <b>Streisand</b> یا <b>V2Box</b> یا <b>FoXray</b>\n• ویندوز: <b>v2rayN</b> یا <b>Nekoray</b>\n\nکافیست لینک سابسکریپشن خود را در نرم‌افزار Paste نمایید.',
-        reply_markup: MAIN_INLINE_KEYBOARD,
+        text: settings.help_message || '📖 راهنمای اتصال: لینک سابسکریپشن را در برنامه v2rayNG کپی کنید.',
+        reply_markup: VPN_MAIN_INLINE_KEYBOARD,
       });
       return;
     }
 
+    // پشتیبانی
     if (action === 'action_support') {
       await sendMessage(token, {
         chat_id: chatId,
-        text: `📞 <b>پشتیبانی فنی:</b>\n\nدر صورت نیاز به راهنمایی یا بروز هرگونه مشکل با آیدی پشتیبانی در ارتباط باشید:\n@${settings.support_username || 'AlirezaKarimi_dev'}`,
-        reply_markup: MAIN_INLINE_KEYBOARD,
+        text: `📞 <b>پشتیبانی فنی:</b>\n\n@${settings.support_username || 'AlirezaKarimi_dev'}`,
+        reply_markup: botMode === 'shop' ? SHOP_MAIN_INLINE_KEYBOARD : VPN_MAIN_INLINE_KEYBOARD,
       });
       return;
+    }
+  }
+}
+
+// تابع کمکی ارسال کاتالوگ فروشگاه همراه با عکس هر محصول
+async function sendShopCatalog(token: string, chatId: number | string, products: any[]) {
+  const activeProducts = products.filter(p => p.in_stock !== false);
+  if (activeProducts.length === 0) {
+    await sendMessage(token, {
+      chat_id: chatId,
+      text: '🛍️ در حال حاضر محصولی در فروشگاه ثبت نشده است.',
+      reply_markup: SHOP_MAIN_INLINE_KEYBOARD,
+    });
+    return;
+  }
+
+  await sendMessage(token, {
+    chat_id: chatId,
+    text: '🛍️ <b>محصولات ویژه فروشگاه:</b>\nلطفاً برای سفارش هر محصول روی دکمه خرید آن کلیک کنید:',
+  });
+
+  for (const prod of activeProducts) {
+    const caption = 
+      `🏷️ <b>${prod.title}</b>\n` +
+      `📂 دسته‌بندی: <b>${prod.category}</b>\n` +
+      `💰 قیمت: <b>${Number(prod.price_toman).toLocaleString('fa-IR')} تومان</b>\n\n` +
+      `📝 <b>توضیحات:</b>\n${prod.description || 'تحویل آنی و مطمئن'}`;
+
+    const buttons = [
+      [{ text: `💳 خرید این محصول (${Number(prod.price_toman).toLocaleString('fa-IR')} تومان)`, callback_data: `select_shop_${prod.id}` }]
+    ];
+
+    if (prod.image_url) {
+      await sendPhoto(token, {
+        chat_id: chatId,
+        photo: prod.image_url,
+        caption,
+        reply_markup: { inline_keyboard: buttons },
+      });
+    } else {
+      await sendMessage(token, {
+        chat_id: chatId,
+        text: caption,
+        reply_markup: { inline_keyboard: buttons },
+      });
     }
   }
 }
