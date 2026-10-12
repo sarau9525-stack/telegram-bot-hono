@@ -41,16 +41,32 @@ export interface SubscriptionOrder {
   config_url: string;
   expire_date: number;
   created_at: number;
+  order_type?: 'vpn' | 'shop';
+  product_image?: string;
   status: 'active' | 'expired' | 'pending';
+}
+
+export interface ShopProduct {
+  id: string;
+  title: string;
+  price_toman: number;
+  category: string;
+  description: string;
+  image_url: string;
+  in_stock: boolean;
+  created_at: number;
 }
 
 export interface BotSettings {
   is_enabled: boolean;
+  bot_mode?: 'vpn' | 'shop';
   bot_name?: string;
   welcome_message: string;
   help_message?: string;
   maintenance_message: string;
   support_username: string;
+  card_number?: string;
+  card_holder?: string;
   updated_at: number;
 }
 
