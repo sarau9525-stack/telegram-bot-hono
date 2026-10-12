@@ -239,6 +239,52 @@ export async function savePaymentConfig(kv: KVNamespace, config: PaymentDetails)
   await kv.put('settings:payment_config', JSON.stringify(config));
 }
 
+export async function getBotMode(kv?: KVNamespace): Promise<'vpn' | 'shop'> {
+  if (!kv) return 'vpn';
+  const mode = await kv.get('settings:bot_mode');
+  return (mode === 'shop' ? 'shop' : 'vpn');
+}
+
+export async function setBotMode(kv: KVNamespace, mode: 'vpn' | 'shop'): Promise<void> {
+  await kv.put('settings:bot_mode', mode);
+}
+
+export async function getShopProducts(kv?: KVNamespace): Promise<any[]> {
+  const defaultProducts = [
+    {
+      id: 'prod_spotify',
+      title: '🎵 اکانت ۱ ماهه پرمیوم اسپاتیفای',
+      price_toman: 99000,
+      category: 'اشتراک موسیقی',
+      description: 'تحویل ۱۰۰٪ آنی با گارانتی تعویض کامل و فعال‌سازی قانونی',
+      image_url: 'https://images.unsplash.com/photo-1614680376593-902f749f7ffc?w=600&auto=format&fit=crop&q=80',
+      in_stock: true,
+      created_at: Date.now()
+    },
+    {
+      id: 'prod_telegram',
+      title: '⭐ تلگرام پرمیوم ۳ ماهه',
+      price_toman: 285000,
+      category: 'پیام‌رسان',
+      description: 'فعال‌سازی رسمی با گیفت تلگرام بدون نیاز به پسورد اکانت',
+      image_url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&auto=format&fit=crop&q=80',
+      in_stock: true,
+      created_at: Date.now()
+    }
+  ];
+  if (!kv) return defaultProducts;
+  try {
+    const raw = await kv.get('shop:products');
+    return raw ? JSON.parse(raw) : defaultProducts;
+  } catch {
+    return defaultProducts;
+  }
+}
+
+export async function saveShopProducts(kv: KVNamespace, products: any[]): Promise<void> {
+  await kv.put('shop:products', JSON.stringify(products));
+}
+
 export async function incrementBroadcastCount(kv: KVNamespace, count: number): Promise<void> {
   const current = parseInt((await kv.get(KV_KEYS.BROADCASTS_SENT)) || '0', 10);
   await kv.put(KV_KEYS.BROADCASTS_SENT, String(current + count));
