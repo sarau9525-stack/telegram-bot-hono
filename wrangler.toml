@@ -2,7 +2,7 @@
 # پیکربندی Cloudflare Workers برای ربات فروش کانفیگ VPN و پنل ادمین
 # ============================================================================
 name = "telegram-bot-hono"
-main = "src/index.ts"
+main = "worker.js"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
 
@@ -18,7 +18,7 @@ id = "5fad8ececde84125802cb9a8631af227"
 preview_id = "5fad8ececde84125802cb9a8631af227"
 
 [vars]
-BOT_NAME = "ربات اختصاصی فروش کانفیگ پرسرعت"
+BOT_NAME = "پنل علیرضا"
 ENVIRONMENT = "production"
 ADMIN_USERNAME = "admin"
 
