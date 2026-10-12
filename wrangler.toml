@@ -1,20 +1,17 @@
 # ============================================================================
 # پیکربندی Cloudflare Workers برای ربات فروش کانفیگ VPN و پنل ادمین
 # ============================================================================
-name = "telegram-vpn-bot-hono"
+name = "telegram-bot-hono"
 main = "src/index.ts"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
 
-# شناسه اکانت کلادفلر شما
-account_id = "5fad8ececde84125802cb9a8631af227"
+# شناسه اکانت کلادفلر شما (تایید شده توسط Cloudflare CI)
+account_id = "e20d6f8a2b08061084c05be3769e7729"
 
 workers_dev = true
 
 # بایندینگ دیتابیس KV کلادفلر
-# راهنما: شناسه زیر اکانت شماست. برای ساخت دیتابیس اختصاصی KV دستور زیر را بزنید:
-# npx wrangler kv namespace create BOT_KV
-# سپس شناسه ۳۲ کاراکتری تولید شده را به جای id زیر قرار دهید.
 [[kv_namespaces]]
 binding = "BOT_KV"
 id = "5fad8ececde84125802cb9a8631af227"
