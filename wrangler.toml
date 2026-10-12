@@ -11,9 +11,12 @@ account_id = "5fad8ececde84125802cb9a8631af227"
 
 workers_dev = true
 
+# بایندینگ دیتابیس KV کلادفلر
+# راهنما: شناسه زیر اکانت شماست. برای ساخت دیتابیس اختصاصی KV دستور زیر را بزنید:
+# npx wrangler kv namespace create BOT_KV
+# سپس شناسه ۳۲ کاراکتری تولید شده را به جای id زیر قرار دهید.
 [[kv_namespaces]]
 binding = "BOT_KV"
-# شناسه دیتابیس KV کلادفلر
 id = "5fad8ececde84125802cb9a8631af227"
 preview_id = "5fad8ececde84125802cb9a8631af227"
 
