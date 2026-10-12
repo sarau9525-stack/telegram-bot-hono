@@ -1,6 +1,16 @@
 import { Hono } from 'hono';
 import { handleBotUpdate } from './handlers/bot';
-import { handleAdminDashboard, handleAdminBroadcast, handleSetWebhook } from './handlers/admin';
+import { 
+  handleAdminDashboard, 
+  handleAdminBroadcast, 
+  handleSetWebhook,
+  handleAdminSetMode,
+  handleAdminGetProducts,
+  handleAdminSaveProduct,
+  handleAdminDeleteProduct,
+  handleAdminUpdatePlans,
+  handleAdminUpdateSettings
+} from './handlers/admin';
 import { authMiddleware, handleLoginPage, handleLoginSubmit, handleLogout } from './handlers/auth';
 import type { TelegramUpdate } from './types/telegram';
 
@@ -28,7 +38,7 @@ app.use('*', async (c, next) => {
 app.get('/', (c) => {
   return c.json({
     status: 'online',
-    service: 'Telegram VPN Sales Bot with Hono & Cloudflare Workers',
+    service: 'Telegram Dual-Mode Bot (VPN & Products) with Hono & Cloudflare Workers',
     endpoints: {
       webhook: 'POST /webhook',
       admin: 'GET /admin',
@@ -64,7 +74,13 @@ app.use('/admin', authMiddleware);
 app.use('/admin/*', authMiddleware);
 
 app.get('/admin', (c) => handleAdminDashboard(c));
-app.post('/admin/api/broadcast', (c) => handleAdminBroadcast(c));
 app.post('/admin/set-webhook', (c) => handleSetWebhook(c));
+app.post('/admin/api/broadcast', (c) => handleAdminBroadcast(c));
+app.post('/admin/api/mode', (c) => handleAdminSetMode(c));
+app.get('/admin/api/products', (c) => handleAdminGetProducts(c));
+app.post('/admin/api/products', (c) => handleAdminSaveProduct(c));
+app.delete('/admin/api/products/:id', (c) => handleAdminDeleteProduct(c));
+app.post('/admin/api/plans', (c) => handleAdminUpdatePlans(c));
+app.post('/admin/api/settings', (c) => handleAdminUpdateSettings(c));
 
 export default app;
