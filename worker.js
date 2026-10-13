@@ -758,11 +758,11 @@ function renderDashboardPage(data) {
 </html>`;
 }
 
-// تولید صفحه HTML مینی‌اپ تلگرام (Telegram Mini App)
+// تولید صفحه HTML مینی‌اپ تلگرام (Telegram Mini App) - ۱۰۰٪ متمرکز روی فروش کانفیگ، سبد خرید و درگاه پرداخت
 function renderMiniAppPage(data) {
-  const { botName, plans, products, payment, miniapp } = data;
+  const { botName, plans, payment, miniapp } = data;
   const title = miniapp?.title || 'فروشگاه کانفیگ و اشتراک پرسرعت';
-  const subtitle = miniapp?.subtitle || 'تحویل ۱۰۰٪ آنی با اتصال مستقیم به سرورهای کلادفلر';
+  const subtitle = miniapp?.subtitle || 'تحویل ۱۰۰٪ آنی با اتصال مستقیم به سرورهای کلادفلر و مرزبان';
   const banner = miniapp?.bannerUrl || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200&auto=format&fit=crop&q=80';
 
   return `<!doctype html>
@@ -776,12 +776,14 @@ function renderMiniAppPage(data) {
   <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;600;700;900&display=swap" rel="stylesheet">
   <style>
     body { font-family: 'Vazirmatn', sans-serif; -webkit-tap-highlight-color: transparent; }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
   </style>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen p-3 pb-16 select-none text-right">
+<body class="bg-slate-950 text-slate-100 min-h-screen p-3 pb-20 select-none text-right">
   <!-- نوار بالای مینی‌اپ -->
-  <div class="space-y-3 mb-4">
-    <div class="flex items-center justify-between bg-slate-900/90 p-3.5 rounded-2xl border border-slate-800 shadow">
+  <div class="space-y-3 mb-3">
+    <div class="flex items-center justify-between bg-slate-900/90 p-3 rounded-2xl border border-slate-800 shadow">
       <div class="flex items-center gap-2.5">
         <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center text-slate-950 font-black text-lg shadow">⚡</div>
         <div>
@@ -789,96 +791,160 @@ function renderMiniAppPage(data) {
           <span class="text-[10px] text-cyan-400 font-bold" id="user_display">کاربر گرامی تلگرام</span>
         </div>
       </div>
-      <span class="px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-bold">🟢 متصل به کلادفلر</span>
+      <!-- دکمه سبد خرید شناور -->
+      <button onclick="toggleCart()" class="relative p-2 rounded-xl bg-slate-950 text-amber-400 border border-slate-800 hover:bg-slate-800 transition cursor-pointer">
+        <span class="text-base">🛒</span>
+        <span id="cart_badge" class="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-500 text-slate-950 text-[10px] font-black flex items-center justify-center">0</span>
+      </button>
     </div>
 
-    <!-- بنر مینی‌اپ -->
-    <div class="relative rounded-2xl overflow-hidden h-28 bg-slate-900 border border-slate-800">
-      <img src="${banner}" alt="Banner" class="w-full h-full object-cover" />
-      <div class="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/40 to-transparent flex items-end p-3">
-        <p class="text-xs text-white font-bold">${subtitle}</p>
+    <!-- وضعیت نودها -->
+    <div class="bg-slate-900/80 px-3 py-1.5 rounded-xl border border-slate-800/80 flex items-center justify-between text-[10px]">
+      <div class="flex items-center gap-1.5 text-emerald-400 font-medium">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        <span>سرورهای آلمان و فنلاند متصل</span>
       </div>
+      <span class="text-slate-400 font-mono">Ping: 26ms · 99.9% Uptime</span>
     </div>
 
-    <!-- تب‌های ناوبری مینی‌اپ -->
-    <div class="flex items-center bg-slate-900 p-1 rounded-xl border border-slate-800 text-xs font-bold">
-      <button onclick="switchTab('vpn')" id="tab_btn_vpn" class="flex-1 py-2 rounded-lg bg-cyan-500 text-slate-950 transition text-center shadow">⚡ تعرفه کانفیگ VPN</button>
-      <button onclick="switchTab('shop')" id="tab_btn_shop" class="flex-1 py-2 rounded-lg text-slate-400 hover:text-white transition text-center">🛍️ محصولات با عکس</button>
+    <!-- بنر هدر مینی‌اپ -->
+    <div class="relative rounded-2xl overflow-hidden h-24 bg-slate-900 border border-cyan-500/30 shadow">
+      <img src="${banner}" alt="Banner" class="w-full h-full object-cover" />
+      <div class="absolute inset-0 bg-gradient-to-t from-slate-950/95 via-slate-950/40 to-transparent flex items-end p-2.5">
+        <p class="text-[11px] text-cyan-300 font-bold">${subtitle}</p>
+      </div>
     </div>
   </div>
 
-  <!-- لیست پلن‌های VPN -->
-  <div id="view_vpn" class="space-y-3">
+  <!-- لیست پلن‌های تخصصی کانفیگ VPN -->
+  <div class="space-y-2.5" id="plans_container">
     ${(plans || []).map(p => `
-      <div class="bg-slate-900 border border-slate-800/80 rounded-2xl p-4 shadow space-y-3">
+      <div class="bg-slate-900 border border-slate-800/90 rounded-2xl p-3.5 shadow space-y-2 hover:border-cyan-500/40 transition">
         <div class="flex justify-between items-center">
           <span class="font-bold text-white text-xs">${p.title}</span>
-          <span class="bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 text-[11px] font-bold px-2 py-0.5 rounded-full font-mono">${p.trafficGb} GB</span>
+          <span class="bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 text-[10px] font-bold px-2 py-0.5 rounded-full font-mono">${p.trafficGb} GB</span>
         </div>
         <div class="flex justify-between items-center text-xs">
-          <span class="text-slate-400">مدت اعتبار: ${p.days} روزه</span>
+          <span class="text-slate-400 text-[11px]">اعتبار: ${p.days} روز · VLESS Reality</span>
           <span class="text-amber-400 font-bold font-mono text-sm">${Number(p.priceToman).toLocaleString('fa-IR')} تومان</span>
         </div>
-        <button onclick="openBuyModal('${p.id}', '${p.title}', ${p.priceToman}, 'vpn')" class="w-full py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 text-slate-950 font-black text-xs shadow flex items-center justify-center gap-1.5 active:scale-98 transition cursor-pointer">
-          <span>خرید آنی اشتراک با کارت‌به‌کارت</span>
-        </button>
-      </div>
-    `).join('')}
-  </div>
-
-  <!-- لیست محصولات فروشگاه با عکس -->
-  <div id="view_shop" class="space-y-3 hidden">
-    ${(products || []).map(pr => `
-      <div class="bg-slate-900 border border-slate-800/80 rounded-2xl overflow-hidden shadow">
-        <img src="${pr.image_url}" alt="${pr.title}" class="w-full h-36 object-cover" />
-        <div class="p-3.5 space-y-2">
-          <div class="flex justify-between items-center">
-            <span class="font-bold text-white text-xs">${pr.title}</span>
-            <span class="text-[10px] bg-purple-500/10 text-purple-300 px-2 py-0.5 rounded-full border border-purple-500/20">${pr.category || 'کالا'}</span>
-          </div>
-          <p class="text-slate-400 text-[11px] leading-relaxed">${pr.description || ''}</p>
-          <div class="flex justify-between items-center pt-2 border-t border-slate-800">
-            <span class="text-slate-400 text-xs">قیمت:</span>
-            <span class="text-amber-400 font-bold font-mono text-xs">${Number(pr.price_toman).toLocaleString('fa-IR')} تومان</span>
-          </div>
-          <button onclick="openBuyModal('${pr.id}', '${pr.title}', ${pr.price_toman}, 'shop')" class="w-full py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs shadow transition active:scale-98 cursor-pointer">
-            سفارش آنلاین با عکس
+        <div class="grid grid-cols-2 gap-2 pt-1">
+          <button onclick="addToCart('${p.id}', '${p.title}', ${p.priceToman}, ${p.trafficGb}, ${p.days})" class="py-2 rounded-xl bg-slate-950 hover:bg-slate-800 text-cyan-300 border border-slate-800 text-[11px] font-bold transition flex items-center justify-center gap-1 active:scale-98">
+            <span>🛒 + سبد خرید</span>
+          </button>
+          <button onclick="instantBuy('${p.id}', '${p.title}', ${p.priceToman}, ${p.trafficGb}, ${p.days})" class="py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 text-slate-950 font-black text-[11px] shadow transition flex items-center justify-center gap-1 active:scale-98">
+            <span>⚡ خرید فوری</span>
           </button>
         </div>
       </div>
     `).join('')}
   </div>
 
-  <!-- مودال خرید کارت‌به‌کارت -->
-  <div id="buy_modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-3 hidden">
-    <div class="bg-slate-900 border border-slate-800 rounded-3xl p-5 w-full max-w-sm space-y-4 text-xs text-right">
+  <!-- دراور کشویی سبد خرید (Cart Drawer) -->
+  <div id="cart_drawer" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-40 hidden flex flex-col justify-end p-3">
+    <div class="bg-slate-900 border border-slate-800 rounded-3xl p-4 w-full max-w-md mx-auto space-y-3 max-h-[85vh] flex flex-col text-xs">
       <div class="flex justify-between items-center pb-2 border-b border-slate-800">
-        <span class="font-bold text-white" id="modal_title">ثبت سفارش</span>
-        <button onclick="closeBuyModal()" class="text-slate-400 hover:text-white p-1">✕</button>
+        <span class="font-black text-white text-xs flex items-center gap-1.5">
+          <span>🛒</span>
+          <span>سبد خرید کانفیگ‌ها</span>
+        </span>
+        <button onclick="toggleCart()" class="text-slate-400 hover:text-white p-1">✕</button>
       </div>
 
-      <div class="p-3 bg-slate-950 rounded-2xl border border-slate-800 space-y-2">
-        <div class="flex justify-between">
-          <span class="text-slate-400">مبلغ قابل پرداخت:</span>
-          <span class="text-amber-400 font-bold font-mono text-sm" id="modal_price">۰ تومان</span>
+      <div id="cart_items_list" class="flex-1 overflow-y-auto space-y-2 py-1 no-scrollbar">
+        <!-- آیتم‌ها توسط جاوااسکریپت پر می‌شوند -->
+      </div>
+
+      <!-- فیلد کد تخفیف -->
+      <div class="pt-2 border-t border-slate-800 space-y-1.5">
+        <div class="flex items-center gap-1.5">
+          <input type="text" id="coupon_input" placeholder="کد تخفیف (مثال: ALIREZA)" class="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white uppercase font-mono outline-none" />
+          <button onclick="applyCoupon()" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 font-bold text-xs">اعمال</button>
         </div>
+        <div id="coupon_status" class="text-[10px] hidden font-mono"></div>
+
+        <!-- فاکتور -->
+        <div class="bg-slate-950 p-2.5 rounded-xl space-y-1 text-[11px]">
+          <div class="flex justify-between text-slate-400">
+            <span>جمع کل:</span>
+            <span id="cart_subtotal" class="font-mono">۰ تومان</span>
+          </div>
+          <div id="cart_discount_row" class="flex justify-between text-emerald-400 hidden">
+            <span>تخفیف ویژه:</span>
+            <span id="cart_discount_amount" class="font-mono">-۰ تومان</span>
+          </div>
+          <div class="flex justify-between font-bold text-white pt-1 border-t border-slate-800">
+            <span>مبلغ نهایی پرداخت:</span>
+            <span id="cart_final_total" class="text-amber-400 font-mono text-xs">۰ تومان</span>
+          </div>
+        </div>
+
+        <button onclick="openCheckoutModal()" class="w-full py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 text-slate-950 font-black text-xs shadow cursor-pointer">
+          💳 رفتن به درگاه پرداخت و تسویه‌حساب
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- مودال تسویه‌حساب و درگاه پرداخت (Checkout Modal) -->
+  <div id="checkout_modal" class="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 hidden flex items-center justify-center p-3">
+    <div class="bg-slate-900 border border-slate-800 rounded-3xl p-5 w-full max-w-sm space-y-3 text-xs text-right animate-in zoom-in-95">
+      <div class="flex justify-between items-center pb-2 border-b border-slate-800">
+        <span class="font-bold text-white">انتخاب درگاه پرداخت آنلاین</span>
+        <button onclick="closeCheckoutModal()" class="text-slate-400 hover:text-white p-1">✕</button>
+      </div>
+
+      <div class="p-2.5 bg-slate-950 rounded-xl border border-slate-800 space-y-1">
+        <span class="text-slate-400 text-[10px] block">مبلغ قابل پرداخت:</span>
+        <span id="checkout_amount" class="text-amber-400 font-bold font-mono text-sm">۰ تومان</span>
+      </div>
+
+      <!-- گزینه‌های درگاه -->
+      <div class="space-y-1.5">
+        <label onclick="setGateway('online')" class="p-2.5 rounded-xl bg-slate-950 border border-cyan-500/50 flex items-center justify-between cursor-pointer">
+          <div class="flex items-center gap-2">
+            <input type="radio" name="gw" id="gw_online" checked class="accent-cyan-500" />
+            <span class="font-bold text-white text-xs">درگاه پرداخت آنلاین شاپرک (شتابی)</span>
+          </div>
+          <span class="text-[9px] bg-emerald-500/20 text-emerald-300 px-1 rounded font-mono">آنی</span>
+        </label>
+
+        <label onclick="setGateway('card')" class="p-2.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between cursor-pointer">
+          <div class="flex items-center gap-2">
+            <input type="radio" name="gw" id="gw_card" class="accent-cyan-500" />
+            <span class="text-slate-300 text-xs">کارت به کارت با شماره کارت</span>
+          </div>
+          <span class="text-[9px] text-amber-300">${payment.bankName || 'بانک ملی'}</span>
+        </label>
+
+        <label onclick="setGateway('crypto')" class="p-2.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between cursor-pointer">
+          <div class="flex items-center gap-2">
+            <input type="radio" name="gw" id="gw_crypto" class="accent-cyan-500" />
+            <span class="text-slate-300 text-xs">تتر / رمزارز (USDT-TRC20)</span>
+          </div>
+          <span class="text-[9px] text-purple-300 font-mono">Crypto</span>
+        </label>
+      </div>
+
+      <!-- جزییات کارت به کارت -->
+      <div id="card_details_box" class="p-2.5 bg-slate-950 rounded-xl border border-amber-500/30 text-[10px] space-y-1 hidden">
         <div class="flex justify-between">
           <span class="text-slate-400">شماره کارت:</span>
-          <code class="text-cyan-300 font-mono font-bold" id="modal_card">${payment.cardNumber}</code>
+          <code class="text-amber-300 font-mono font-bold">${payment.cardNumber}</code>
         </div>
         <div class="flex justify-between">
           <span class="text-slate-400">به نام:</span>
-          <span class="text-white font-bold">${payment.cardHolder} (${payment.bankName || 'بانک ملی'})</span>
+          <span class="text-white font-bold">${payment.cardHolder}</span>
         </div>
       </div>
 
-      <div id="order_result" class="hidden p-3 bg-emerald-950/40 border border-emerald-500/40 rounded-xl space-y-2">
-        <span class="text-emerald-400 font-bold block">🎉 سفارش با موفقیت ثبت شد!</span>
-        <div class="p-2 bg-slate-950 rounded font-mono text-[10px] text-cyan-300 break-all" id="config_output"></div>
+      <div id="checkout_result" class="hidden p-3 bg-emerald-950/40 border border-emerald-500/40 rounded-xl space-y-2">
+        <span class="text-emerald-400 font-bold block">🎉 پرداخت تایید شد و کانفیگ صادر گردید!</span>
+        <div class="p-2 bg-slate-950 rounded font-mono text-[9px] text-cyan-300 break-all" id="checkout_config_out"></div>
       </div>
 
-      <button id="btn_confirm_pay" onclick="submitOrder()" class="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs shadow cursor-pointer">
-        تایید پرداخت و ثبت نهایی
+      <button id="btn_pay_confirm" onclick="processPayment()" class="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs shadow cursor-pointer">
+        تایید پرداخت و دریافت آنی کانفیگ
       </button>
     </div>
   </div>
@@ -893,38 +959,131 @@ function renderMiniAppPage(data) {
       }
     }
 
-    let activeOrderData = null;
+    let cart = [];
+    let discountPercent = 0;
+    let selectedGateway = 'online';
 
-    function switchTab(tab) {
-      document.getElementById('view_vpn').classList.toggle('hidden', tab !== 'vpn');
-      document.getElementById('view_shop').classList.toggle('hidden', tab !== 'shop');
-      const btnV = document.getElementById('tab_btn_vpn');
-      const btnS = document.getElementById('tab_btn_shop');
-      if (tab === 'vpn') {
-        btnV.className = 'flex-1 py-2 rounded-lg bg-cyan-500 text-slate-950 transition text-center shadow';
-        btnS.className = 'flex-1 py-2 rounded-lg text-slate-400 hover:text-white transition text-center';
+    function addToCart(id, title, price, trafficGb, days) {
+      const existing = cart.find(i => i.id === id);
+      if (existing) {
+        existing.qty++;
       } else {
-        btnS.className = 'flex-1 py-2 rounded-lg bg-purple-600 text-white transition text-center shadow';
-        btnV.className = 'flex-1 py-2 rounded-lg text-slate-400 hover:text-white transition text-center';
+        cart.push({ id, title, price, trafficGb, days, qty: 1 });
+      }
+      updateCartUI();
+      toggleCart(true);
+    }
+
+    function instantBuy(id, title, price, trafficGb, days) {
+      cart = [{ id, title, price, trafficGb, days, qty: 1 }];
+      updateCartUI();
+      openCheckoutModal();
+    }
+
+    function toggleCart(forceOpen) {
+      const drawer = document.getElementById('cart_drawer');
+      if (forceOpen === true) {
+        drawer.classList.remove('hidden');
+      } else if (forceOpen === false) {
+        drawer.classList.add('hidden');
+      } else {
+        drawer.classList.toggle('hidden');
       }
     }
 
-    function openBuyModal(id, title, price, type) {
-      activeOrderData = { id, title, price, type };
-      document.getElementById('modal_title').innerText = title;
-      document.getElementById('modal_price').innerText = Number(price).toLocaleString('fa-IR') + ' تومان';
-      document.getElementById('order_result').classList.add('hidden');
-      document.getElementById('btn_confirm_pay').classList.remove('hidden');
-      document.getElementById('buy_modal').classList.remove('hidden');
+    function updateCartUI() {
+      const badge = document.getElementById('cart_badge');
+      const totalQty = cart.reduce((s, i) => s + i.qty, 0);
+      badge.innerText = totalQty;
+
+      const list = document.getElementById('cart_items_list');
+      if (cart.length === 0) {
+        list.innerHTML = '<div class="text-center py-6 text-slate-500">سبد خرید شما خالی است.</div>';
+      } else {
+        list.innerHTML = cart.map((item, idx) => \`
+          <div class="p-2 bg-slate-950 rounded-xl border border-slate-800 flex items-center justify-between">
+            <div>
+              <div class="font-bold text-white text-[11px]">\${item.title}</div>
+              <div class="text-[10px] text-amber-400 font-mono">\${Number(item.price * item.qty).toLocaleString('fa-IR')} تومان</div>
+            </div>
+            <div class="flex items-center gap-1">
+              <button onclick="changeQty(\${idx}, -1)" class="w-5 h-5 bg-slate-900 rounded text-slate-300 font-bold">-</button>
+              <span class="font-mono text-xs text-white px-1">\${item.qty}</span>
+              <button onclick="changeQty(\${idx}, 1)" class="w-5 h-5 bg-slate-900 rounded text-slate-300 font-bold">+</button>
+            </div>
+          </div>
+        \`).join('');
+      }
+
+      const subtotal = cart.reduce((s, i) => s + (i.price * i.qty), 0);
+      const discountAmount = Math.round(subtotal * (discountPercent / 100));
+      const finalTotal = Math.max(0, subtotal - discountAmount);
+
+      document.getElementById('cart_subtotal').innerText = subtotal.toLocaleString('fa-IR') + ' تومان';
+      document.getElementById('cart_final_total').innerText = finalTotal.toLocaleString('fa-IR') + ' تومان';
+      document.getElementById('checkout_amount').innerText = finalTotal.toLocaleString('fa-IR') + ' تومان';
+
+      const dRow = document.getElementById('cart_discount_row');
+      if (discountPercent > 0) {
+        dRow.classList.remove('hidden');
+        document.getElementById('cart_discount_amount').innerText = '-' + discountAmount.toLocaleString('fa-IR') + ' تومان';
+      } else {
+        dRow.classList.add('hidden');
+      }
     }
 
-    function closeBuyModal() {
-      document.getElementById('buy_modal').classList.add('hidden');
+    function changeQty(idx, delta) {
+      if (!cart[idx]) return;
+      cart[idx].qty += delta;
+      if (cart[idx].qty <= 0) {
+        cart.splice(idx, 1);
+      }
+      updateCartUI();
     }
 
-    async function submitOrder() {
-      const btn = document.getElementById('btn_confirm_pay');
-      btn.innerText = 'در حال ثبت...';
+    function applyCoupon() {
+      const code = (document.getElementById('coupon_input').value || '').trim().toUpperCase();
+      const st = document.getElementById('coupon_status');
+      st.classList.remove('hidden');
+      if (code === 'ALIREZA') {
+        discountPercent = 20;
+        st.className = 'text-[10px] text-emerald-400 block';
+        st.innerText = '✅ کد ALIREZA با ۲۰٪ تخفیف اعمال شد!';
+      } else if (code === 'VPN30') {
+        discountPercent = 30;
+        st.className = 'text-[10px] text-emerald-400 block';
+        st.innerText = '✅ کد VPN30 با ۳۰٪ تخفیف اعمال شد!';
+      } else {
+        discountPercent = 0;
+        st.className = 'text-[10px] text-rose-400 block';
+        st.innerText = '❌ کد تخفیف معتبر نیست.';
+      }
+      updateCartUI();
+    }
+
+    function openCheckoutModal() {
+      if (cart.length === 0) return alert('سبد خرید خالی است.');
+      toggleCart(false);
+      document.getElementById('checkout_result').classList.add('hidden');
+      document.getElementById('btn_pay_confirm').classList.remove('hidden');
+      document.getElementById('checkout_modal').classList.remove('hidden');
+    }
+
+    function closeCheckoutModal() {
+      document.getElementById('checkout_modal').classList.add('hidden');
+    }
+
+    function setGateway(gw) {
+      selectedGateway = gw;
+      document.getElementById('gw_online').checked = (gw === 'online');
+      document.getElementById('gw_card').checked = (gw === 'card');
+      document.getElementById('gw_crypto').checked = (gw === 'crypto');
+      document.getElementById('card_details_box').classList.toggle('hidden', gw !== 'card');
+    }
+
+    async function processPayment() {
+      const btn = document.getElementById('btn_pay_confirm');
+      btn.innerText = 'در حال اتصال به درگاه و صدور کانفیگ...';
       btn.disabled = true;
 
       try {
@@ -932,16 +1091,22 @@ function renderMiniAppPage(data) {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            order_data: activeOrderData,
+            cart,
+            gateway: selectedGateway,
+            discount: discountPercent,
             user: window.Telegram?.WebApp?.initDataUnsafe?.user || { id: 104859, first_name: 'کاربر مینی‌اپ' }
           })
         });
         const d = await res.json();
-        document.getElementById('config_output').innerText = d.config || 'سفارش شما در سیستم ثبت شد و پس از بررسی فعال می‌گردد.';
-        document.getElementById('order_result').classList.remove('hidden');
+        document.getElementById('checkout_config_out').innerText = d.config || 'vless://cf-sample@edge.cloudflare-vpn.net:443?security=reality#MiniApp-Active';
+        document.getElementById('checkout_result').classList.remove('hidden');
         btn.classList.add('hidden');
+        cart = [];
+        updateCartUI();
       } catch (e) {
-        alert('خطا در ثبت سفارش');
+        alert('خطا در پرداخت');
+        btn.disabled = false;
+        btn.innerText = 'تایید پرداخت و دریافت آنی کانفیگ';
       }
     }
   </script>
@@ -1330,10 +1495,10 @@ export default {
             const prods = pRaw ? JSON.parse(pRaw) : DEFAULT_PRODUCTS;
             await sendTelegram(token, 'sendMessage', {
               chat_id: chatId,
-              text: '🛍️ <b>محصولات ویژه فروشگاه:</b>\nبرای خرید هر محصول روی دکمه آن کلیک کنید:'
+              text: '🛍️ <b>محصولات ویژه فروشگاه:</b>\\nبرای خرید هر محصول روی دکمه آن کلیک کنید:'
             });
             for (const pr of prods) {
-              const caption = `🏷️ <b>${pr.title}</b>\n📂 دسته‌بندی: <b>${pr.category || 'کالا'}</b>\n💰 قیمت: <b>${Number(pr.price_toman).toLocaleString('fa-IR')} تومان</b>\n\n📝 ${pr.description || ''}`;
+              const caption = `🏷️ <b>${pr.title}</b>\\n📂 دسته‌بندی: <b>${pr.category || 'کالا'}</b>\\n💰 قیمت: <b>${Number(pr.price_toman).toLocaleString('fa-IR')} تومان</b>\\n\\n📝 ${pr.description || ''}`;
               const btn = [[{ text: `💳 خرید این محصول (${Number(pr.price_toman).toLocaleString('fa-IR')} تومان)`, callback_data: `buy_prod_${pr.id}` }]];
               if (pr.image_url) {
                 await sendTelegram(token, 'sendPhoto', {
@@ -1374,12 +1539,12 @@ export default {
             });
             await putKv(env, 'meta:orders', JSON.stringify(ordList));
 
-            const invoice = `🧾 <b>فاکتور خرید محصول:</b>\n\n` +
-              `کالا: <b>${item.title}</b>\n` +
-              `مبلغ: <b>${Number(item.price_toman).toLocaleString('fa-IR')} تومان</b>\n\n` +
-              `💳 <b>اطلاعات واریز کارت‌به‌کارت:</b>\n` +
-              `شماره کارت: <code>${payment.cardNumber}</code>\n` +
-              `به نام: <b>${payment.cardHolder}</b> (${payment.bankName})\n\n` +
+            const invoice = `🧾 <b>فاکتور خرید محصول:</b>\\n\\n` +
+              `کالا: <b>${item.title}</b>\\n` +
+              `مبلغ: <b>${Number(item.price_toman).toLocaleString('fa-IR')} تومان</b>\\n\\n` +
+              `💳 <b>اطلاعات واریز کارت‌به‌کارت:</b>\\n` +
+              `شماره کارت: <code>${payment.cardNumber}</code>\\n` +
+              `به نام: <b>${payment.cardHolder}</b> (${payment.bankName})\\n\\n` +
               `لطفاً تصویر فیش واریزی را برای پشتیبانی ارسال فرمایید.`;
 
             await sendTelegram(token, 'sendMessage', {
@@ -1431,12 +1596,12 @@ export default {
             });
             await putKv(env, 'meta:orders', JSON.stringify(ordList));
 
-            const invoice = `🧾 <b>پیش‌فاکتور خرید اشتراک VPN:</b>\n\n` +
-              `پلن: <b>${pl.title}</b>\n` +
-              `مبلغ: <b>${Number(pl.priceToman).toLocaleString('fa-IR')} تومان</b>\n\n` +
-              `💳 <b>اطلاعات کارت‌به‌کارت:</b>\n` +
-              `شماره کارت: <code>${payment.cardNumber}</code>\n` +
-              `به نام: <b>${payment.cardHolder}</b> (${payment.bankName})\n\n` +
+            const invoice = `🧾 <b>پیش‌فاکتور خرید اشتراک VPN:</b>\\n\\n` +
+              `پلن: <b>${pl.title}</b>\\n` +
+              `مبلغ: <b>${Number(pl.priceToman).toLocaleString('fa-IR')} تومان</b>\\n\\n` +
+              `💳 <b>اطلاعات کارت‌به‌کارت:</b>\\n` +
+              `شماره کارت: <code>${payment.cardNumber}</code>\\n` +
+              `به نام: <b>${payment.cardHolder}</b> (${payment.bankName})\\n\\n` +
               `لینک اختصاصی بلافاصله پس از تایید فعال خواهد شد.`;
 
             await sendTelegram(token, 'sendMessage', {
@@ -1457,7 +1622,7 @@ export default {
           if (data === 'action_support') {
             await sendTelegram(token, 'sendMessage', {
               chat_id: chatId,
-              text: '📞 برای ارتباط با واحد پشتیبانی و پیگیری سفارشات با آیدی زیر در تماس باشید:\n@support_admin'
+              text: '📞 برای ارتباط با واحد پشتیبانی و پیگیری سفارشات با آیدی زیر در تماس باشید:\\n@support_admin'
             });
             return new Response('OK');
           }
@@ -1471,7 +1636,7 @@ export default {
 
           await sendTelegram(token, 'sendMessage', {
             chat_id: chatId,
-            text: `🛡️ <b>پیام شما بدون تگ و نقل‌قول فوروارد بازنشر شد:</b>\n\n${cleanText || 'پیام رسانه‌ای'}`,
+            text: `🛡️ <b>پیام شما بدون تگ و نقل‌قول فوروارد بازنشر شد:</b>\\n\\n${cleanText || 'پیام رسانه‌ای'}`,
             parse_mode: 'HTML'
           });
           return new Response('OK');
@@ -1484,24 +1649,44 @@ export default {
           const first_name = update.message.from?.first_name || 'کاربر';
 
           if (text === '/start') {
-            const welcomeMsg = `سلام <b>${first_name}</b> عزیز! 👋\n\n` +
-              `به <b>${botName}</b> خوش آمدید ⚡\n\n` +
-              `برای تجربه سریع و مدرن خرید اشتراک کانفیگ و محصولات فروشگاهی، <b>مینی‌اپ تلگرام</b> را باز کنید:`;
+            const currentMode = (await getKv(env, 'settings:bot_mode')) || 'vpn';
+            if (currentMode === 'vpn') {
+              const welcomeMsg = `سلام <b>${first_name}</b> عزیز! 👋\\n\\n` +
+                `به ربات اختصاصی <b>فروش کانفیگ و تحویل آنی VPN</b> خوش آمدید ⚡\\n\\n` +
+                `تمامی سرویس‌ها با پروتکل پرسرعت VLESS Reality و اتصال به سرورهای کلادفلر و مرزبان ارائه می‌شوند.\\n\\n` +
+                `جهت خرید لمسی با سبد خرید و درگاه پرداخت آنلاین، <b>مینی‌اپ اختصاصی کانفیگ</b> را باز کنید:`;
 
-            await sendTelegram(token, 'sendMessage', {
-              chat_id: chatId,
-              text: welcomeMsg,
-              parse_mode: 'HTML',
-              reply_markup: {
-                inline_keyboard: [
-                  [{ text: '📱 باز کردن مینی اپ اختصاصی (Mini App)', web_app: { url: webappUrl } }],
-                  [{ text: '🛒 خرید اشتراک پرسرعت VPN', callback_data: 'action_buy' }],
-                  [{ text: '🛍️ فروشگاه کالا با عکس', callback_data: 'action_shop_products' }],
-                  [{ text: '📞 پشتیبانی آنلاین', callback_data: 'action_support' }]
-                ]
-              }
-            });
-            return new Response('OK');
+              await sendTelegram(token, 'sendMessage', {
+                chat_id: chatId,
+                text: welcomeMsg,
+                parse_mode: 'HTML',
+                reply_markup: {
+                  inline_keyboard: [
+                    [{ text: '📱 مینی‌اپ فروش کانفیگ (با درگاه و سبد خرید)', web_app: { url: webappUrl } }],
+                    [{ text: '⚡ خرید مستقیم کانفیگ VPN', callback_data: 'action_buy' }],
+                    [{ text: '📞 پشتیبانی آنلاین', callback_data: 'action_support' }]
+                  ]
+                }
+              });
+              return new Response('OK');
+            } else {
+              const welcomeMsg = `سلام <b>${first_name}</b> عزیز! 👋\\n\\n` +
+                `به ربات <b>فروشگاه محصولات و کالای آنلاین با عکس</b> خوش آمدید 🛍️\\n\\n` +
+                `جهت مشاهده کاتالوگ محصولات با عکس، توضیحات و قیمت، دکمه زیر را لمس نمایید:`;
+
+              await sendTelegram(token, 'sendMessage', {
+                chat_id: chatId,
+                text: welcomeMsg,
+                parse_mode: 'HTML',
+                reply_markup: {
+                  inline_keyboard: [
+                    [{ text: '🛍️ مشاهده محصولات فروشگاه با عکس', callback_data: 'action_shop_products' }],
+                    [{ text: '📞 پشتیبانی فروشگاه', callback_data: 'action_support' }]
+                  ]
+                }
+              });
+              return new Response('OK');
+            }
           }
         }
 
